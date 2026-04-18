@@ -1,10 +1,7 @@
 python-telegram-bot==21.6
 openai==1.51.0
-supabase==2.7.4
+aiosqlite==0.20.0
 faiss-cpu==1.8.0
-langchain==0.3.1
-langchain-openai==0.2.1
-langchain-community==0.3.1
 pypdf==4.3.1
 python-docx==1.1.2
 python-dotenv==1.0.1

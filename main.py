@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 from telegram import Update
@@ -9,6 +10,7 @@ from telegram.ext import (
     filters,
 )
 from config import TELEGRAM_BOT_TOKEN, LOG_LEVEL
+from services.supabase_service import init_db
 from handlers.start_handler import start_command, help_command, reset_command, courses_command, settings_command, progress_command
 from handlers.tutor_handler import handle_text_message, handle_photo_message, handle_voice_message
 from handlers.document_handler import handle_document
@@ -49,6 +51,7 @@ def create_app() -> Application:
 
 def main():
     logger.info("Starting AI Tutor Bot...")
+    asyncio.get_event_loop().run_until_complete(init_db())
     app = create_app()
     logger.info("Bot is running!")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)

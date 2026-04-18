@@ -263,10 +263,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _show_file_info(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str):
+    import aiosqlite
+    from config import DB_PATH
     query = update.callback_query
-    db_client = db.get_client()
-    res = db_client.table("course_files").select("*").eq("id", file_id).maybeSingle().execute()
-    f = res.data
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("SELECT * FROM course_files WHERE id = ?", (file_id,)) as cur:
+            row = await cur.fetchone()
+    f = dict(row) if row else None
     if not f:
         await query.answer("فایل پیدا نشد!")
         return

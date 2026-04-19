@@ -3,12 +3,19 @@
 {% block page_title %}📂 فایل‌های درس{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:16px;">
-  <a href="/courses" class="btn btn-ghost btn-sm">← بازگشت به دروس</a>
+<div style="margin-bottom:16px;display:flex;gap:8px;">
+  <a href="/courses" class="btn btn-ghost btn-sm">← دروس</a>
+  {% if course %}
+  <a href="/courses/{{ course_id }}" class="btn btn-ghost btn-sm">← مدیریت درس</a>
+  {% endif %}
 </div>
+
 <div class="card">
   <div class="card-header">
-    <span class="card-title">فایل‌ها ({{ files|length }})</span>
+    <span class="card-title">
+      فایل‌های {% if course %}{{ course.emoji or '📚' }} {{ course.name }}{% else %}درس{% endif %}
+      ({{ files|length }})
+    </span>
   </div>
   <div class="table-wrap">
     <table>
@@ -21,6 +28,7 @@
           <th>وضعیت</th>
           <th>تاریخ آپلود</th>
           <th>خلاصه</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -38,10 +46,15 @@
             {% endif %}
           </td>
           <td class="text-muted dir-ltr" style="font-size:12px;">{{ f.uploaded_at[:16] if f.uploaded_at else '' }}</td>
-          <td class="truncate text-muted" style="font-size:12px;max-width:220px;">{{ f.summary or '—' }}</td>
+          <td class="truncate text-muted" style="font-size:12px;max-width:180px;">{{ f.summary or '—' }}</td>
+          <td>
+            <form method="post" action="/courses/{{ course_id }}/files/{{ f.id }}/delete">
+              <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('فایل «{{ f.original_filename }}» حذف شود؟')">حذف</button>
+            </form>
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-muted" style="text-align:center;padding:24px;">هنوز فایلی آپلود نشده</td></tr>
+        <tr><td colspan="8" class="text-muted" style="text-align:center;padding:24px;">هنوز فایلی آپلود نشده</td></tr>
         {% endfor %}
       </tbody>
     </table>

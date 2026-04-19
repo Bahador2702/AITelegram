@@ -3,9 +3,17 @@
 {% block page_title %}📚 دروس{% endblock %}
 
 {% block content %}
+<div class="card" style="margin-bottom:20px;">
+  <form method="get" action="/courses" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ search }}" placeholder="جستجو بر اساس نام درس یا کاربر..." style="max-width:360px;" />
+    <button type="submit" class="btn btn-primary">جستجو</button>
+    {% if search %}<a href="/courses" class="btn btn-ghost">پاک کردن</a>{% endif %}
+  </form>
+</div>
+
 <div class="card">
   <div class="card-header">
-    <span class="card-title">همه دروس ({{ courses|length }})</span>
+    <span class="card-title">همه دروس ({{ courses|length }}{% if search %} — «{{ search }}»{% endif %})</span>
   </div>
   <div class="table-wrap">
     <table>
@@ -45,7 +53,10 @@
           <td>{{ c.question_count or 0 }}</td>
           <td class="text-muted dir-ltr" style="font-size:12px;">{{ c.created_at[:10] if c.created_at else '' }}</td>
           <td>
-            <a href="/courses/{{ c.id }}/files" class="btn btn-ghost btn-sm">فایل‌ها</a>
+            <div style="display:flex;gap:6px;">
+              <a href="/courses/{{ c.id }}" class="btn btn-ghost btn-sm">مدیریت</a>
+              <a href="/courses/{{ c.id }}/files" class="btn btn-ghost btn-sm">فایل‌ها</a>
+            </div>
           </td>
         </tr>
         {% else %}

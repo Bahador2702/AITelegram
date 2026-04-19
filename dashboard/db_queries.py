@@ -42,11 +42,26 @@ async def get_stats() -> dict:
     }
 
 
-async def get_all_users(limit: int = 100, offset: int = 0) -> list[dict]:
+async def get_all_users(limit: int = 100, offset: int = 0, search: str = "") -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute(
-            """SELECT u.*,
+        if search:
+            like = f"%{search}%"
+            sql = """SELECT u.*,
+               COUNT(DISTINCT c.id) as course_count,
+               COUNT(DISTINCT cf.id) as file_count,
+               COUNT(DISTINCT conv.id) as message_count
+               FROM bot_users u
+               LEFT JOIN courses c ON c.user_id = u.id
+               LEFT JOIN course_files cf ON cf.user_id = u.id
+               LEFT JOIN conversations conv ON conv.user_id = u.id
+               WHERE u.first_name LIKE ? OR u.username LIKE ? OR CAST(u.id AS TEXT) LIKE ?
+               GROUP BY u.id
+               ORDER BY u.created_at DESC
+               LIMIT ? OFFSET ?"""
+            params = (like, like, like, limit, offset)
+        else:
+            sql = """SELECT u.*,
                COUNT(DISTINCT c.id) as course_count,
                COUNT(DISTINCT cf.id) as file_count,
                COUNT(DISTINCT conv.id) as message_count
@@ -56,9 +71,9 @@ async def get_all_users(limit: int = 100, offset: int = 0) -> list[dict]:
                LEFT JOIN conversations conv ON conv.user_id = u.id
                GROUP BY u.id
                ORDER BY u.created_at DESC
-               LIMIT ? OFFSET ?""",
-            (limit, offset),
-        ) as cur:
+               LIMIT ? OFFSET ?"""
+            params = (limit, offset)
+        async with db.execute(sql, params) as cur:
             return [dict(r) for r in await cur.fetchall()]
 
 
@@ -71,7 +86,15 @@ async def get_user_detail(user_id: int) -> dict | None:
             return None
         user = dict(row)
 
-        async with db.execute("SELECT * FROM courses WHERE user_id = ? ORDER BY created_at DESC", (user_id,)) as cur:
+        async with db.execute(
+            """SELECT c.*, COUNT(cf.id) as file_count
+               FROM courses c
+               LEFT JOIN course_files cf ON cf.course_id = c.id
+               WHERE c.user_id = ?
+               GROUP BY c.id
+               ORDER BY c.created_at DESC""",
+            (user_id,),
+        ) as cur:
             user["courses"] = [dict(r) for r in await cur.fetchall()]
 
         async with db.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,)) as cur:
@@ -101,11 +124,25 @@ async def get_user_detail(user_id: int) -> dict | None:
         return user
 
 
-async def get_all_courses(limit: int = 100) -> list[dict]:
+async def get_all_courses(limit: int = 200, search: str = "") -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute(
-            """SELECT c.*, u.username, u.first_name,
+        if search:
+            like = f"%{search}%"
+            sql = """SELECT c.*, u.username, u.first_name,
+               COUNT(DISTINCT cf.id) as file_count,
+               COUNT(DISTINCT qq.id) as question_count
+               FROM courses c
+               LEFT JOIN bot_users u ON u.id = c.user_id
+               LEFT JOIN course_files cf ON cf.course_id = c.id
+               LEFT JOIN quiz_questions qq ON qq.course_id = c.id
+               WHERE c.name LIKE ? OR u.first_name LIKE ? OR u.username LIKE ?
+               GROUP BY c.id
+               ORDER BY c.created_at DESC
+               LIMIT ?"""
+            params = (like, like, like, limit)
+        else:
+            sql = """SELECT c.*, u.username, u.first_name,
                COUNT(DISTINCT cf.id) as file_count,
                COUNT(DISTINCT qq.id) as question_count
                FROM courses c
@@ -114,10 +151,32 @@ async def get_all_courses(limit: int = 100) -> list[dict]:
                LEFT JOIN quiz_questions qq ON qq.course_id = c.id
                GROUP BY c.id
                ORDER BY c.created_at DESC
-               LIMIT ?""",
-            (limit,),
-        ) as cur:
+               LIMIT ?"""
+            params = (limit,)
+        async with db.execute(sql, params) as cur:
             return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_course_detail(course_id: str) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT c.*, u.username, u.first_name, u.id as owner_id
+               FROM courses c
+               LEFT JOIN bot_users u ON u.id = c.user_id
+               WHERE c.id = ?""",
+            (course_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return None
+        course = dict(row)
+        async with db.execute(
+            "SELECT * FROM course_files WHERE course_id = ? ORDER BY uploaded_at DESC",
+            (course_id,),
+        ) as cur:
+            course["files"] = [{**dict(r), "indexed": bool(r["indexed"])} for r in await cur.fetchall()]
+        return course
 
 
 async def get_course_files(course_id: str) -> list[dict]:
@@ -155,9 +214,86 @@ async def delete_user(user_id: int):
         await db.commit()
 
 
+async def update_user(user_id: int, first_name: str, last_name: str, username: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE bot_users SET first_name=?, last_name=?, username=?, updated_at=datetime('now') WHERE id=?",
+            (first_name, last_name, username, user_id),
+        )
+        await db.commit()
+
+
+async def reset_user_onboarding(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE bot_users SET onboarded=0, active_course_id=NULL, updated_at=datetime('now') WHERE id=?",
+            (user_id,),
+        )
+        await db.commit()
+
+
 async def clear_user_conversations(user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM conversations WHERE user_id = ?", (user_id,))
+        await db.commit()
+
+
+async def clear_user_quiz_data(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM quiz_performance WHERE user_id = ?", (user_id,))
+        await db.execute("DELETE FROM quiz_questions WHERE user_id = ?", (user_id,))
+        await db.execute("DELETE FROM flashcards WHERE user_id = ?", (user_id,))
+        await db.execute("DELETE FROM topic_mastery WHERE user_id = ?", (user_id,))
+        await db.commit()
+
+
+async def clear_user_memory(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM user_memory WHERE user_id = ?", (user_id,))
+        await db.commit()
+
+
+async def get_course_file(file_id: str) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM course_files WHERE id = ?", (file_id,)) as cur:
+            row = await cur.fetchone()
+            return {**dict(row), "indexed": bool(row["indexed"])} if row else None
+
+
+async def delete_course_file(file_id: str) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM course_files WHERE id = ?", (file_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return None
+        data = {**dict(row), "indexed": bool(row["indexed"])}
+        await db.execute(
+            "UPDATE courses SET file_count = MAX(0, file_count - 1) WHERE id = ?",
+            (data["course_id"],),
+        )
+        await db.execute("DELETE FROM course_files WHERE id = ?", (file_id,))
+        await db.commit()
+        return data
+
+
+async def delete_course(course_id: str) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id FROM courses WHERE id = ?", (course_id,)) as cur:
+            if not await cur.fetchone():
+                return False
+        await db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+        await db.commit()
+        return True
+
+
+async def update_course(course_id: str, name: str, description: str, emoji: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE courses SET name=?, description=?, emoji=?, updated_at=datetime('now') WHERE id=?",
+            (name, description, emoji, course_id),
+        )
         await db.commit()
 
 

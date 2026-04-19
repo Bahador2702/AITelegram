@@ -3,15 +3,23 @@
 {% block page_title %}👥 کاربران{% endblock %}
 
 {% block content %}
+<div class="card" style="margin-bottom:20px;">
+  <form method="get" action="/users" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ search }}" placeholder="جستجو بر اساس نام، یوزرنیم یا آیدی..." style="max-width:360px;" />
+    <button type="submit" class="btn btn-primary">جستجو</button>
+    {% if search %}<a href="/users" class="btn btn-ghost">پاک کردن</a>{% endif %}
+  </form>
+</div>
+
 <div class="card">
   <div class="card-header">
-    <span class="card-title">لیست کاربران ({{ users|length }})</span>
+    <span class="card-title">لیست کاربران ({{ users|length }}{% if search %} — «{{ search }}»{% endif %})</span>
     <div class="flex gap-2">
       {% if offset > 0 %}
-      <a href="/users?offset={{ offset - 50 }}" class="btn btn-ghost btn-sm">← قبلی</a>
+      <a href="/users?offset={{ offset - 50 }}{% if search %}&q={{ search }}{% endif %}" class="btn btn-ghost btn-sm">← قبلی</a>
       {% endif %}
       {% if users|length == 50 %}
-      <a href="/users?offset={{ offset + 50 }}" class="btn btn-ghost btn-sm">بعدی →</a>
+      <a href="/users?offset={{ offset + 50 }}{% if search %}&q={{ search }}{% endif %}" class="btn btn-ghost btn-sm">بعدی →</a>
       {% endif %}
     </div>
   </div>
@@ -56,7 +64,7 @@
           </td>
           <td class="text-muted dir-ltr" style="font-size:12px;">{{ u.created_at[:10] if u.created_at else '' }}</td>
           <td>
-            <a href="/users/{{ u.id }}" class="btn btn-ghost btn-sm">مشاهده</a>
+            <a href="/users/{{ u.id }}" class="btn btn-ghost btn-sm">مدیریت</a>
           </td>
         </tr>
         {% else %}

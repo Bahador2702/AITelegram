@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}فایل‌های درس{% endblock %}
+{% block page_title %}📂 فایل‌های درس{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px;">
+  <a href="/courses" class="btn btn-ghost btn-sm">← بازگشت به دروس</a>
+</div>
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">فایل‌ها ({{ files|length }})</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>نام فایل</th>
+          <th>نوع</th>
+          <th>حجم</th>
+          <th>chunk ها</th>
+          <th>وضعیت</th>
+          <th>تاریخ آپلود</th>
+          <th>خلاصه</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td style="font-weight:500;">{{ f.original_filename }}</td>
+          <td><span class="badge badge-info">{{ f.file_type }}</span></td>
+          <td class="text-muted">{{ (f.file_size_bytes // 1024) if f.file_size_bytes else 0 }} KB</td>
+          <td>{{ f.chunk_count or 0 }}</td>
+          <td>
+            {% if f.indexed %}
+            <span class="badge badge-success">✅ ایندکس شده</span>
+            {% else %}
+            <span class="badge badge-warning">⏳ در صف</span>
+            {% endif %}
+          </td>
+          <td class="text-muted dir-ltr" style="font-size:12px;">{{ f.uploaded_at[:16] if f.uploaded_at else '' }}</td>
+          <td class="truncate text-muted" style="font-size:12px;max-width:220px;">{{ f.summary or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted" style="text-align:center;padding:24px;">هنوز فایلی آپلود نشده</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

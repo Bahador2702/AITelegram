@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ورود — Bot Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg: #0f1117; --card: #1c2333; --border: #2a3347; --text: #e2e8f0; --muted: #8892a4; --accent: #3b82f6; --danger: #ef4444; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: grid; place-items: center; }
+    .login-box {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 40px; width: 100%; max-width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    }
+    .login-logo { text-align: center; margin-bottom: 28px; }
+    .login-logo .emoji { font-size: 48px; display: block; margin-bottom: 10px; }
+    .login-logo h1 { font-size: 20px; font-weight: 700; }
+    .login-logo p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; margin-top: 16px; }
+    input {
+      width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; font-size: 14px; outline: none; direction: ltr;
+    }
+    input:focus { border-color: var(--accent); }
+    .error { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); color: var(--danger); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 16px; }
+    button {
+      width: 100%; margin-top: 24px; padding: 11px; background: var(--accent); color: #fff;
+      border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover { background: #2563eb; }
+    .footer-note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="emoji">🤖</span>
+      <h1>Bot Admin Panel</h1>
+      <p>پنل مدیریت استاد هوشمند</p>
+    </div>
+    {% if error %}
+    <div class="error">⚠️ {{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login">
+      <label>رمز عبور ادمین</label>
+      <input type="password" name="password" placeholder="••••••••" autofocus required />
+      <button type="submit">ورود به داشبورد</button>
+    </form>
+    <p class="footer-note">دسترسی فقط برای ادمین</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}داشبورد{% endblock %}
+{% block page_title %}داشبورد{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card blue">
+    <div class="stat-label">کل کاربران</div>
+    <div class="stat-value">{{ stats.total_users }}</div>
+    <div class="stat-sub">{{ stats.new_users_week }} نفر این هفته</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">کاربران فعال</div>
+    <div class="stat-value">{{ stats.onboarded_users }}</div>
+    <div class="stat-sub">onboarding کامل شده</div>
+  </div>
+  <div class="stat-card yellow">
+    <div class="stat-label">درس‌ها</div>
+    <div class="stat-value">{{ stats.total_courses }}</div>
+    <div class="stat-sub">{{ stats.total_files }} فایل آپلودشده</div>
+  </div>
+  <div class="stat-card cyan">
+    <div class="stat-label">پیام‌های امروز</div>
+    <div class="stat-value">{{ stats.messages_today }}</div>
+    <div class="stat-sub">{{ stats.total_messages }} کل پیام‌ها</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-label">سوالات کوییز</div>
+    <div class="stat-value">{{ stats.total_questions }}</div>
+    <div class="stat-sub">{{ stats.total_answers }} پاسخ داده شده</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">فلش‌کارت‌ها</div>
+    <div class="stat-value">{{ stats.total_flashcards }}</div>
+    <div class="stat-sub">کل ساخته شده</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">📡 آخرین فعالیت‌ها</span>
+    <a href="/users" class="btn btn-ghost btn-sm">همه کاربران</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>کاربر</th>
+          <th>نقش</th>
+          <th>پیام</th>
+          <th>زمان</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in activity %}
+        <tr>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="width:26px;height:26px;font-size:11px;">
+                {{ (item.first_name or 'U')[0] }}
+              </div>
+              <a href="/users/{{ item.user_id }}" style="color:inherit;text-decoration:none;">
+                {{ item.first_name or '' }} {% if item.username %}
+                <span class="text-muted">@{{ item.username }}</span>{% endif %}
+              </a>
+            </div>
+          </td>
+          <td>
+            {% if item.role == 'user' %}
+            <span class="badge badge-info">کاربر</span>
+            {% else %}
+            <span class="badge badge-success">بات</span>
+            {% endif %}
+          </td>
+          <td class="truncate" style="max-width:300px;">{{ item.preview }}</td>
+          <td class="text-muted dir-ltr" style="font-size:12px;">{{ item.created_at[:16] if item.created_at else '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:24px;">هنوز فعالیتی ثبت نشده</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}آمار کوییز{% endblock %}
+{% block page_title %}🧠 آمار کوییز{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">عملکرد کوییز به تفکیک درس</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>درس</th>
+          <th>کاربر</th>
+          <th>سوالات</th>
+          <th>پاسخ‌ها</th>
+          <th>دقت</th>
+          <th>نمودار</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in stats %}
+        <tr>
+          <td style="font-weight:500;">{{ s.course_name }}</td>
+          <td>
+            {{ s.first_name or '' }}
+            {% if s.username %}<span class="text-muted">@{{ s.username }}</span>{% endif %}
+          </td>
+          <td>{{ s.question_count or 0 }}</td>
+          <td>{{ s.answer_count or 0 }}</td>
+          <td>
+            {% set acc = s.accuracy or 0 %}
+            <span class="badge {% if acc >= 70 %}badge-success{% elif acc >= 40 %}badge-warning{% else %}badge-danger{% endif %}">
+              {{ acc }}%
+            </span>
+          </td>
+          <td style="min-width:100px;">
+            {% set acc = s.accuracy or 0 %}
+            <div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+              <div style="width:{{ acc }}%;height:100%;background:{% if acc >= 70 %}var(--success){% elif acc >= 40 %}var(--warning){% else %}var(--danger){% endif %};border-radius:3px;transition:width .3s;"></div>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:24px;">هنوز داده‌ای ثبت نشده</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

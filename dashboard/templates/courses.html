@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}دروس{% endblock %}
+{% block page_title %}📚 دروس{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">همه دروس ({{ courses|length }})</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>درس</th>
+          <th>کاربر</th>
+          <th>فایل‌ها</th>
+          <th>سوالات</th>
+          <th>تاریخ ساخت</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in courses %}
+        <tr>
+          <td>
+            <div style="font-weight:500;">{{ c.emoji or '📚' }} {{ c.name }}</div>
+            {% if c.description %}
+            <div class="text-muted" style="font-size:11px;">{{ c.description[:60] }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="width:24px;height:24px;font-size:10px;">{{ (c.first_name or 'U')[0] }}</div>
+              <a href="/users/{{ c.user_id }}" style="color:inherit;text-decoration:none;font-size:13px;">
+                {{ c.first_name or '' }}
+                {% if c.username %}<span class="text-muted">@{{ c.username }}</span>{% endif %}
+              </a>
+            </div>
+          </td>
+          <td>
+            <span class="badge {% if c.file_count > 0 %}badge-success{% else %}badge-default{% endif %}">
+              {{ c.file_count or 0 }} فایل
+            </span>
+          </td>
+          <td>{{ c.question_count or 0 }}</td>
+          <td class="text-muted dir-ltr" style="font-size:12px;">{{ c.created_at[:10] if c.created_at else '' }}</td>
+          <td>
+            <a href="/courses/{{ c.id }}/files" class="btn btn-ghost btn-sm">فایل‌ها</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:24px;">هنوز درسی ثبت نشده</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

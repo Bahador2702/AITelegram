@@ -22,6 +22,11 @@ UPLOADS_DIR = os.path.join(DATA_DIR, "uploads")
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "change-this-secret-key-in-production")
+DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "8080"))
+DASHBOARD_HOST = os.getenv("DASHBOARD_HOST", "0.0.0.0")
+
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
 MAX_FILE_SIZE_MB = 50

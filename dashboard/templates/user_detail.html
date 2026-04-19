@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ user.first_name }}{% endblock %}
+{% block page_title %}جزئیات کاربر{% endblock %}
+
+{% block content %}
+<div style="display:flex;gap:16px;align-items:center;margin-bottom:24px;">
+  <div class="avatar" style="width:52px;height:52px;font-size:22px;">{{ (user.first_name or 'U')[0] }}</div>
+  <div>
+    <h2 style="font-size:18px;font-weight:700;">{{ user.first_name or '' }} {{ user.last_name or '' }}</h2>
+    <div class="text-muted" style="font-size:13px;">
+      {% if user.username %}@{{ user.username }} · {% endif %}
+      ID: <span class="dir-ltr font-mono">{{ user.id }}</span>
+    </div>
+  </div>
+  <div style="margin-right:auto;display:flex;gap:8px;">
+    <form method="post" action="/users/{{ user.id }}/clear-conversations" style="display:inline;">
+      <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('پاک کردن مکالمات؟')">🗑️ پاک کردن مکالمات</button>
+    </form>
+    <form method="post" action="/users/{{ user.id }}/delete" style="display:inline;">
+      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('حذف کاربر؟ این عمل برگشت‌ناپذیر است!')">❌ حذف کاربر</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-bottom:20px;">
+  <div class="card">
+    <div class="card-header"><span class="card-title">📊 آمار کلی</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:var(--accent);">{{ user.courses|length }}</div>
+        <div class="text-muted" style="font-size:12px;">درس</div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:var(--success);">{{ user.quiz_correct }}/{{ user.quiz_total }}</div>
+        <div class="text-muted" style="font-size:12px;">کوییز صحیح/کل</div>
+      </div>
+    </div>
+    <div class="mt-4">
+      {% if user.preferences %}
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">تنظیمات:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <span class="badge badge-info">حالت: {{ user.preferences.answer_mode or 'auto' }}</span>
+        <span class="badge badge-default">عمق: {{ user.preferences.explanation_depth or 'normal' }}</span>
+        {% if user.preferences.socratic_mode %}<span class="badge badge-success">سقراطی</span>{% endif %}
+        {% if user.preferences.hint_mode %}<span class="badge badge-warning">راهنما</span>{% endif %}
+        {% if user.preferences.voice_enabled %}<span class="badge badge-info">صوتی</span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">🔥 ضعیف‌ترین موضوعات</span></div>
+    {% if user.weak_topics %}
+    {% for t in user.weak_topics %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">{{ t.topic }}</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div style="width:{{ (t.mastery_score * 100)|int }}%;height:100%;background:{% if t.mastery_score > 0.7 %}var(--success){% elif t.mastery_score > 0.4 %}var(--warning){% else %}var(--danger){% endif %};border-radius:3px;"></div>
+        </div>
+        <span class="text-muted" style="font-size:11px;">{{ (t.mastery_score * 100)|int }}%</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted" style="font-size:13px;">هنوز اطلاعاتی ثبت نشده</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid-3">
+  <div class="card">
+    <div class="card-header"><span class="card-title">💬 آخرین مکالمات</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;">
+      {% for msg in user.recent_conversations %}
+      <div style="padding:10px 12px;border-radius:8px;background:var(--bg);{% if msg.role == 'user' %}border-right:3px solid var(--accent);{% else %}border-right:3px solid var(--success);{% endif %}">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+          {% if msg.role == 'user' %}👤 کاربر{% else %}🤖 بات{% endif %}
+          <span style="float:left;">{{ msg.created_at[:16] if msg.created_at else '' }}</span>
+        </div>
+        <div style="font-size:13px;line-height:1.5;">{{ msg.content[:200] }}{% if msg.content|length > 200 %}...{% endif %}</div>
+      </div>
+      {% else %}
+      <p class="text-muted" style="font-size:13px;">هنوز مکالمه‌ای ندارد</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">📚 دروس</span></div>
+    {% for c in user.courses %}
+    <div style="padding:10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:13px;font-weight:500;">{{ c.emoji or '📚' }} {{ c.name }}</div>
+        <div class="text-muted" style="font-size:11px;">{{ c.file_count or 0 }} فایل</div>
+      </div>
+      <a href="/courses/{{ c.id }}/files" class="btn btn-ghost btn-sm">فایل‌ها</a>
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:13px;">هنوز درسی ندارد</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

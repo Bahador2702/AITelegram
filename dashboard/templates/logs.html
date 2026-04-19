@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}لاگ‌ها{% endblock %}
+{% block page_title %}📋 لاگ‌های سیستم{% endblock %}
+
+{% block head %}
+<style>
+  #log-container {
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    height: 620px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    direction: ltr;
+    text-align: left;
+  }
+  .log-line { padding: 2px 0; word-break: break-all; }
+  .log-time { color: #4a5568; margin-left: 6px; }
+  .log-logger { color: #6366f1; margin-left: 6px; }
+  .controls { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .filter-btn {
+    padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--card-bg); color: var(--text-muted); cursor: pointer; font-size: 12px;
+    transition: all .15s;
+  }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); display: inline-block; margin-left: 6px; }
+  #status-dot.connected { background: var(--success); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="controls">
+  <span id="status-dot"></span>
+  <span id="status-text" class="text-muted" style="font-size:12px;">در حال اتصال...</span>
+  <div style="margin-right:auto;display:flex;gap:8px;">
+    <button class="filter-btn active" data-level="all">همه</button>
+    <button class="filter-btn" data-level="INFO">INFO</button>
+    <button class="filter-btn" data-level="WARNING">WARNING</button>
+    <button class="filter-btn" data-level="ERROR">ERROR</button>
+  </div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+    <input type="checkbox" id="auto-scroll" checked style="width:auto;" /> اسکرول خودکار
+  </label>
+  <button onclick="document.getElementById('log-container').innerHTML=''" class="btn btn-ghost btn-sm">🗑️ پاک کردن</button>
+</div>
+
+<div id="log-container">
+  {% for log in logs %}
+  <div class="log-line log-{{ log.level|lower }}" data-level="{{ log.level }}">
+    <span class="log-time">{{ log.time }}</span>
+    <span class="log-{{ log.level|lower }}">[{{ log.level }}]</span>
+    <span class="log-logger">{{ log.logger }}</span>
+    {{ log.message }}
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+  const container = document.getElementById('log-container');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const autoScrollEl = document.getElementById('auto-scroll');
+  let currentFilter = 'all';
+
+  function scrollToBottom() {
+    if (autoScrollEl.checked) container.scrollTop = container.scrollHeight;
+  }
+  scrollToBottom();
+
+  function addLogLine(entry) {
+    if (currentFilter !== 'all' && entry.level !== currentFilter) return;
+    const line = document.createElement('div');
+    line.className = `log-line log-${(entry.level||'').toLowerCase()}`;
+    line.dataset.level = entry.level;
+    line.innerHTML = `<span class="log-time">${entry.time||''}</span> <span class="log-${(entry.level||'').toLowerCase()}">[${entry.level||''}]</span> <span class="log-logger">${entry.logger||''}</span> ${escHtml(entry.message||'')}`;
+    container.appendChild(line);
+    if (container.children.length > 1500) container.removeChild(container.firstChild);
+    scrollToBottom();
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function connect() {
+    const es = new EventSource('/logs/stream');
+    es.onopen = () => {
+      statusDot.classList.add('connected');
+      statusText.textContent = 'متصل — لاگ‌های زنده';
+    };
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.ping || data.message === 'connected') return;
+        addLogLine(data);
+      } catch(err) {}
+    };
+    es.onerror = () => {
+      statusDot.classList.remove('connected');
+      statusText.textContent = 'قطع شد — تلاش مجدد...';
+      es.close();
+      setTimeout(connect, 3000);
+    };
+  }
+  connect();
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.level;
+      document.querySelectorAll('#log-container .log-line').forEach(line => {
+        line.style.display = (currentFilter === 'all' || line.dataset.level === currentFilter) ? '' : 'none';
+      });
+    });
+  });
+</script>
+{% endblock %}

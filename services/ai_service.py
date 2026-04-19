@@ -1,10 +1,13 @@
 import base64
 import logging
 from openai import AsyncOpenAI
-from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_VISION_MODEL, OPENAI_EMBEDDING_MODEL
+from config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, OPENAI_VISION_MODEL, OPENAI_EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
-client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+client = AsyncOpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url=OPENAI_BASE_URL or None,
+)
 
 SYSTEM_BASE = """تو یک استاد خصوصی هوشمند و صبور هستی که به دانشجویان کمک می‌کنی مفاهیم درسی را یاد بگیرند.
 پاسخ‌هایت باید:

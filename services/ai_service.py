@@ -1,12 +1,19 @@
 import base64
 import logging
 from openai import AsyncOpenAI
-from config import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, OPENAI_VISION_MODEL, OPENAI_EMBEDDING_MODEL
+from config import (
+    OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, OPENAI_VISION_MODEL,
+    OPENAI_EMBEDDING_MODEL, OPENAI_EMBEDDING_API_KEY, OPENAI_EMBEDDING_BASE_URL,
+)
 
 logger = logging.getLogger(__name__)
 client = AsyncOpenAI(
     api_key=OPENAI_API_KEY,
     base_url=OPENAI_BASE_URL or None,
+)
+embedding_client = AsyncOpenAI(
+    api_key=OPENAI_EMBEDDING_API_KEY,
+    base_url=OPENAI_EMBEDDING_BASE_URL or None,
 )
 
 SYSTEM_BASE = """تو یک استاد خصوصی هوشمند و صبور هستی که به دانشجویان کمک می‌کنی مفاهیم درسی را یاد بگیرند.
@@ -138,7 +145,7 @@ async def transcribe_voice(audio_bytes: bytes, filename: str = "voice.ogg") -> s
 
 
 async def get_embeddings(texts: list[str]) -> list[list[float]]:
-    res = await client.embeddings.create(
+    res = await embedding_client.embeddings.create(
         model=OPENAI_EMBEDDING_MODEL,
         input=texts,
     )

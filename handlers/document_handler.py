@@ -1,4 +1,3 @@
-import os
 import logging
 import uuid
 from telegram import Update
@@ -28,6 +27,12 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    course = await db.get_course(course_id)
+    if not course:
+        await update.message.reply_text("⚠️ درس فعال یافت نشد. لطفاً دوباره درس را انتخاب کن.")
+        return
+
+    course_name = course.get("name", "")
     filename = document.file_name or "file"
     file_type = doc.get_file_type(filename)
 
@@ -35,21 +40,33 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ فرمت پشتیبانی نشده. لطفاً PDF، DOCX یا TXT ارسال کن.")
         return
 
-    if not doc.is_valid_file_size(document.file_size or 0):
+    file_size = document.file_size or 0
+    if not doc.is_valid_file_size(file_size):
         await update.message.reply_text(f"❌ حجم فایل بیش از {doc.MAX_FILE_SIZE_MB} MB است.")
         return
 
     progress_msg = await update.message.reply_text("📥 در حال دانلود فایل...")
 
+    file_path = None
     try:
-        file = await context.bot.get_file(document.file_id)
-        file_bytes = await file.download_as_bytearray()
+        logger.info(f"[upload] user={user.id} course='{course_name}' file='{filename}' size={file_size}")
+
+        tg_file = await context.bot.get_file(document.file_id)
+        file_bytes = await tg_file.download_as_bytearray()
 
         unique_name = f"{uuid.uuid4().hex}_{filename}"
-        file_path = await doc.save_file(bytes(file_bytes), user.id, course_id, unique_name)
+
+        await progress_msg.edit_text("💾 در حال ذخیره فایل...")
+        file_path = await doc.save_file(
+            bytes(file_bytes),
+            user.id,
+            course_id,
+            unique_name,
+            course_name=course_name,
+        )
+        logger.info(f"[upload] saved → {file_path}")
 
         await progress_msg.edit_text("📄 در حال استخراج متن...")
-
         text_content = doc.extract_text(file_path, file_type)
         if not text_content.strip():
             await progress_msg.edit_text("❌ نتوانستم متنی از این فایل استخراج کنم.")
@@ -62,17 +79,23 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             filename=unique_name,
             original_filename=filename,
             file_type=file_type,
-            file_size=document.file_size or len(file_bytes),
+            file_size=file_size or len(file_bytes),
         )
         file_id = str(file_record["id"])
+        logger.info(f"[upload] db record created file_id={file_id}")
 
         await progress_msg.edit_text("🔍 در حال ایندکس‌گذاری و ساخت وکتور استور...")
 
         chunks_text = vs.chunk_text(text_content)
+        if not chunks_text:
+            await progress_msg.edit_text("❌ متن فایل خیلی کوتاه است یا قابل تقسیم نیست.")
+            doc.delete_file(file_path)
+            return
+
+        logger.info(f"[upload] indexing {len(chunks_text)} chunks for file_id={file_id}")
         store = vs.get_store(course_id)
 
         batch_size = 50
-        all_chunks = []
         for i in range(0, len(chunks_text), batch_size):
             batch = chunks_text[i:i + batch_size]
             embeddings = await ai_service.get_embeddings(batch)
@@ -86,35 +109,41 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for j, chunk in enumerate(batch)
             ]
             store.add_chunks(chunk_metas, embeddings)
-            all_chunks.extend(chunk_metas)
 
         await progress_msg.edit_text("📝 در حال ساخت خلاصه فایل...")
-        sample_text = text_content[:2000]
-        summary_prompt = f"این متن را در ۱-۲ جمله فارسی خلاصه کن:\n{sample_text}"
         summary = ""
         try:
-            res = await ai_service.chat(
+            sample_text = text_content[:2000]
+            summary_prompt = f"این متن را در ۱-۲ جمله فارسی خلاصه کن:\n{sample_text}"
+            summary = await ai_service.chat(
                 [{"role": "user", "content": summary_prompt}],
                 "یک خلاصه‌نویس حرفه‌ای هستی.",
                 max_tokens=150,
             )
-            summary = res
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[upload] summary failed: {e}")
 
         await db.update_file_indexed(file_id, len(chunks_text), summary)
+        logger.info(f"[upload] complete file_id={file_id} chunks={len(chunks_text)}")
 
-        course = await db.get_course(course_id)
         await progress_msg.edit_text(
             f"✅ **فایل با موفقیت آپلود و ایندکس شد!**\n\n"
             f"📄 فایل: {filename}\n"
             f"📊 {len(chunks_text)} chunk استخراج شد\n"
-            f"📚 درس: {course['name'] if course else ''}\n\n"
+            f"📚 درس: {course_name}\n\n"
             f"_{summary}_",
             reply_markup=course_actions_keyboard(course_id),
             parse_mode="Markdown",
         )
 
+    except RuntimeError as e:
+        logger.error(f"[upload] RuntimeError user={user.id}: {e}")
+        await progress_msg.edit_text(f"❌ {e}")
     except Exception as e:
-        logger.error(f"Document upload error: {e}")
-        await progress_msg.edit_text("❌ خطا در آپلود فایل. لطفاً دوباره تلاش کن.")
+        logger.exception(f"[upload] Unexpected error user={user.id} file='{filename}': {e}")
+        await progress_msg.edit_text(
+            f"❌ خطا در آپلود فایل.\n\n`{type(e).__name__}: {str(e)[:200]}`",
+            parse_mode="Markdown",
+        )
+        if file_path:
+            doc.delete_file(file_path)

@@ -145,11 +145,39 @@ async def transcribe_voice(audio_bytes: bytes, filename: str = "voice.ogg") -> s
 
 
 async def get_embeddings(texts: list[str]) -> list[list[float]]:
-    res = await embedding_client.embeddings.create(
-        model=OPENAI_EMBEDDING_MODEL,
-        input=texts,
-    )
-    return [item.embedding for item in res.data]
+    if not texts:
+        return []
+    try:
+        res = await embedding_client.embeddings.create(
+            model=OPENAI_EMBEDDING_MODEL,
+            input=texts,
+        )
+        if res.data is None:
+            logger.warning("[embeddings] SDK returned None data, falling back to raw HTTP")
+            return await _get_embeddings_raw(texts)
+        return [item.embedding for item in res.data]
+    except TypeError as e:
+        logger.warning(f"[embeddings] SDK parse error: {e}, falling back to raw HTTP")
+        return await _get_embeddings_raw(texts)
+    except Exception as e:
+        logger.error(f"[embeddings] Error: {e}")
+        raise
+
+
+async def _get_embeddings_raw(texts: list[str]) -> list[list[float]]:
+    import httpx
+    base = OPENAI_EMBEDDING_BASE_URL or "https://api.openai.com/v1"
+    url = f"{base.rstrip('/')}/embeddings"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_EMBEDDING_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {"model": OPENAI_EMBEDDING_MODEL, "input": texts}
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+    return [item["embedding"] for item in data.get("data", [])]
 
 
 async def generate_quiz_questions(content: str, course_name: str, num_questions: int = 5, question_type: str = "mcq", topic: str = "") -> list[dict]:

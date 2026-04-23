@@ -1,6 +1,7 @@
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TimedOut, NetworkError
 from services import supabase_service as db
 from services import ai_service
 from services import vector_store as vs
@@ -8,6 +9,18 @@ from utils.keyboards import feedback_keyboard, main_menu
 from utils.formatters import format_memory_context, truncate
 
 logger = logging.getLogger(__name__)
+
+
+async def safe_edit(msg, text, **kwargs):
+    try:
+        await msg.edit_text(text, **kwargs)
+    except (TimedOut, NetworkError):
+        try:
+            await msg.edit_text(text, **kwargs)
+        except Exception:
+            logger.error("[edit_text] failed after retry")
+    except Exception as e:
+        logger.warning(f"[edit_text] skipped: {e}")
 
 _awaiting_state: dict[int, str] = {}
 
@@ -96,7 +109,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     except Exception as e:
         logger.error(f"Error in text handler: {e}")
-        await loading_msg.edit_text("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
+        await safe_edit(loading_msg, "❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
 
 
 async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,7 +151,7 @@ async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     except Exception as e:
         logger.error(f"Photo handler error: {e}")
-        await loading_msg.edit_text("❌ خطا در پردازش تصویر.")
+        await safe_edit(loading_msg, "❌ خطا در پردازش تصویر.")
 
 
 async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -153,10 +166,10 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
         transcript = await ai_service.transcribe_voice(bytes(audio_bytes))
         if not transcript.strip():
-            await loading_msg.edit_text("❌ نتوانستم صدا را تشخیص بدم. لطفاً دوباره ضبط کن.")
+            await safe_edit(loading_msg, "❌ نتوانستم صدا را تشخیص بدم. لطفاً دوباره ضبط کن.")
             return
 
-        await loading_msg.edit_text(f"🎙️ متن پیام: _{transcript}_\n\n⏳ در حال پردازش...", parse_mode="Markdown")
+        await safe_edit(loading_msg, f"🎙️ متن پیام: _{transcript}_\n\n⏳ در حال پردازش...", parse_mode="Markdown")
         fake_update = update
         context.user_data["voice_transcript"] = transcript
 
@@ -196,7 +209,7 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     except Exception as e:
         logger.error(f"Voice handler error: {e}")
-        await loading_msg.edit_text("❌ خطا در پردازش پیام صوتی.")
+        await safe_edit(loading_msg, "❌ خطا در پردازش پیام صوتی.")
 
 
 async def _handle_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE, state: str, text: str, user_id: int):

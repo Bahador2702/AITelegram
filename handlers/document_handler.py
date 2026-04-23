@@ -2,6 +2,7 @@ import logging
 import uuid
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TimedOut, NetworkError
 from services import supabase_service as db
 from services import document_service as doc
 from services import vector_store as vs
@@ -9,6 +10,19 @@ from services import ai_service
 from utils.keyboards import course_actions_keyboard, back_to_main
 
 logger = logging.getLogger(__name__)
+
+
+async def safe_edit(msg, text, **kwargs):
+    try:
+        await msg.edit_text(text, **kwargs)
+    except (TimedOut, NetworkError) as e:
+        logger.warning(f"[edit_text] network error, retrying: {e}")
+        try:
+            await msg.edit_text(text, **kwargs)
+        except Exception:
+            logger.error(f"[edit_text] failed after retry")
+    except Exception as e:
+        logger.warning(f"[edit_text] skipped: {e}")
 
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,7 +59,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ حجم فایل بیش از {doc.MAX_FILE_SIZE_MB} MB است.")
         return
 
-    progress_msg = await update.message.reply_text("📥 در حال دانلود فایل...")
+    progress_msg = await update.message.reply_text("📥 در حال دانلود فایل...", read_timeout=30, write_timeout=30)
 
     file_path = None
     try:
@@ -56,7 +70,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         unique_name = f"{uuid.uuid4().hex}_{filename}"
 
-        await progress_msg.edit_text("💾 در حال ذخیره فایل...")
+        await safe_edit(progress_msg, "💾 در حال ذخیره فایل...")
         file_path = await doc.save_file(
             bytes(file_bytes),
             user.id,
@@ -66,10 +80,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         logger.info(f"[upload] saved → {file_path}")
 
-        await progress_msg.edit_text("📄 در حال استخراج متن...")
+        await safe_edit(progress_msg, "📄 در حال استخراج متن...")
         text_content = doc.extract_text(file_path, file_type)
         if not text_content.strip():
-            await progress_msg.edit_text("❌ نتوانستم متنی از این فایل استخراج کنم.")
+            await safe_edit(progress_msg, "❌ نتوانستم متنی از این فایل استخراج کنم.")
             doc.delete_file(file_path)
             return
 
@@ -84,11 +98,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_id = str(file_record["id"])
         logger.info(f"[upload] db record created file_id={file_id}")
 
-        await progress_msg.edit_text("🔍 در حال ایندکس‌گذاری و ساخت وکتور استور...")
+        await safe_edit(progress_msg, "🔍 در حال ایندکس‌گذاری و ساخت وکتور استور...")
 
         chunks_text = vs.chunk_text(text_content)
         if not chunks_text:
-            await progress_msg.edit_text("❌ متن فایل خیلی کوتاه است یا قابل تقسیم نیست.")
+            await safe_edit(progress_msg, "❌ متن فایل خیلی کوتاه است یا قابل تقسیم نیست.")
             doc.delete_file(file_path)
             return
 
@@ -110,7 +124,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             store.add_chunks(chunk_metas, embeddings)
 
-        await progress_msg.edit_text("📝 در حال ساخت خلاصه فایل...")
+        await safe_edit(progress_msg, "📝 در حال ساخت خلاصه فایل...")
         summary = ""
         try:
             sample_text = text_content[:2000]
@@ -126,7 +140,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await db.update_file_indexed(file_id, len(chunks_text), summary)
         logger.info(f"[upload] complete file_id={file_id} chunks={len(chunks_text)}")
 
-        await progress_msg.edit_text(
+        await safe_edit(
+            progress_msg,
             f"✅ **فایل با موفقیت آپلود و ایندکس شد!**\n\n"
             f"📄 فایل: {filename}\n"
             f"📊 {len(chunks_text)} chunk استخراج شد\n"
@@ -138,10 +153,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except RuntimeError as e:
         logger.error(f"[upload] RuntimeError user={user.id}: {e}")
-        await progress_msg.edit_text(f"❌ {e}")
+        await safe_edit(progress_msg, f"❌ {e}")
     except Exception as e:
         logger.exception(f"[upload] Unexpected error user={user.id} file='{filename}': {e}")
-        await progress_msg.edit_text(
+        await safe_edit(
+            progress_msg,
             f"❌ خطا در آپلود فایل.\n\n`{type(e).__name__}: {str(e)[:200]}`",
             parse_mode="Markdown",
         )

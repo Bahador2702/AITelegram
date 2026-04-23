@@ -7,6 +7,7 @@ from services import supabase_service as db
 from services import document_service as doc
 from services import vector_store as vs
 from services import ai_service
+from config import GEMINI_API_KEY
 from utils.keyboards import course_actions_keyboard, back_to_main
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"[upload] indexing {len(chunks_text)} chunks for file_id={file_id}")
         store = vs.get_store(course_id)
 
-        batch_size = 50
+        batch_size = 5 if GEMINI_API_KEY else 50
         for i in range(0, len(chunks_text), batch_size):
             batch = chunks_text[i:i + batch_size]
             embeddings = await ai_service.get_embeddings(batch)

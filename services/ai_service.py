@@ -4,6 +4,7 @@ from openai import AsyncOpenAI
 from config import (
     OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, OPENAI_VISION_MODEL,
     OPENAI_EMBEDDING_MODEL, OPENAI_EMBEDDING_API_KEY, OPENAI_EMBEDDING_BASE_URL,
+    GEMINI_API_KEY, GEMINI_EMBEDDING_MODEL,
 )
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ client = AsyncOpenAI(
 embedding_client = AsyncOpenAI(
     api_key=OPENAI_EMBEDDING_API_KEY,
     base_url=OPENAI_EMBEDDING_BASE_URL or None,
-)
+) if OPENAI_EMBEDDING_API_KEY else None
 
 SYSTEM_BASE = """تو یک استاد خصوصی هوشمند و صبور هستی که به دانشجویان کمک می‌کنی مفاهیم درسی را یاد بگیرند.
 پاسخ‌هایت باید:
@@ -144,9 +145,42 @@ async def transcribe_voice(audio_bytes: bytes, filename: str = "voice.ogg") -> s
     return transcript.text
 
 
-async def get_embeddings(texts: list[str]) -> list[list[float]]:
+async def get_embeddings(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
     if not texts:
         return []
+    if GEMINI_API_KEY:
+        return await _get_embeddings_gemini(texts, task_type)
+    if embedding_client:
+        return await _get_embeddings_openai(texts)
+    raise RuntimeError("No embedding API configured. Set GEMINI_API_KEY or OPENAI_EMBEDDING_API_KEY.")
+
+
+async def _get_embeddings_gemini(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
+    import httpx
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_EMBEDDING_MODEL}:embedContent"
+    headers = {"Content-Type": "application/json"}
+    params = {"key": GEMINI_API_KEY}
+    all_embeddings = []
+    async with httpx.AsyncClient(timeout=120) as http:
+        for text in texts:
+            payload = {
+                "model": f"models/{GEMINI_EMBEDDING_MODEL}",
+                "content": {"parts": [{"text": text}]},
+                "taskType": task_type,
+                "outputDimensionality": 768,
+            }
+            resp = await http.post(url, json=payload, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            embedding = data.get("embedding", {}).get("values", [])
+            if not embedding:
+                logger.error(f"[gemini-embed] No embedding returned for: {text[:100]}")
+                raise RuntimeError(f"Gemini embedding returned empty for: {text[:100]}")
+            all_embeddings.append(embedding)
+    return all_embeddings
+
+
+async def _get_embeddings_openai(texts: list[str]) -> list[list[float]]:
     try:
         res = await embedding_client.embeddings.create(
             model=OPENAI_EMBEDDING_MODEL,
@@ -173,8 +207,8 @@ async def _get_embeddings_raw(texts: list[str]) -> list[list[float]]:
         "Content-Type": "application/json",
     }
     payload = {"model": OPENAI_EMBEDDING_MODEL, "input": texts}
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(url, json=payload, headers=headers)
+    async with httpx.AsyncClient(timeout=120) as http:
+        resp = await http.post(url, json=payload, headers=headers)
         resp.raise_for_status()
         data = resp.json()
     return [item["embedding"] for item in data.get("data", [])]

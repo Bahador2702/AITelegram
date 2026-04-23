@@ -75,7 +75,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         if course_id:
             store = vs.get_store(course_id)
             if store.get_chunk_count() > 0:
-                embeddings = await ai_service.get_embeddings([text])
+                embeddings = await ai_service.get_embeddings([text], task_type="RETRIEVAL_QUERY")
                 if embeddings:
                     results = store.search(embeddings[0], k=5)
                     if results:
@@ -187,7 +187,7 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
         if course_id:
             store = vs.get_store(course_id)
             if store.get_chunk_count() > 0:
-                embeddings = await ai_service.get_embeddings([transcript])
+                embeddings = await ai_service.get_embeddings([transcript], task_type="RETRIEVAL_QUERY")
                 if embeddings:
                     results = store.search(embeddings[0], k=5)
                     context_text = "\n\n".join(r.get("text", "") for r in results[:5])
